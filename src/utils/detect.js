@@ -1,10 +1,7 @@
 import * as tf from "@tensorflow/tfjs";
 import { renderBoxes } from "./renderBox";
-import labels from "./labels.json";
 
-
-
-const numClass = labels.length;
+const FPSUpdateMilliseconds = 1000;
 
 /**
  * Preprocess image / frame before forwarded into the model
@@ -40,7 +37,6 @@ const preprocess = (source, modelWidth, modelHeight) => {
   return [input, xRatio, yRatio];
 };
 
-
 /**
  * Function run inference and do detection from source.
  * @param {HTMLImageElement|HTMLVideoElement} source
@@ -49,23 +45,20 @@ const preprocess = (source, modelWidth, modelHeight) => {
  * @param {VoidFunction} callback function to run after detection process
  */
 export const detect = async (source, model, canvasRef, callback = () => { }) => {
-
-  console.time("session")
   const [modelWidth, modelHeight] = model.inputShape.slice(1, 3); // get model width and height
 
   tf.engine().startScope(); // start scoping tf engine
   const [input, xRatio, yRatio] = preprocess(source, modelWidth, modelHeight); // preprocess image
 
   const res = model.net.execute(input); // inference model
-  console.log(res.dataSync()[400])
   const transRes = res.transpose([0, 2, 1]); // transpose result [b, det, n] => [b, n, det]
-  // console.log(res.dataSync())
+
   const boxes = tf.tidy(() => {
     const w = transRes.slice([0, 0, 2], [-1, -1, 1]); // get width
     const h = transRes.slice([0, 0, 3], [-1, -1, 1]); // get height
     const x1 = tf.sub(transRes.slice([0, 0, 0], [-1, -1, 1]), tf.div(w, 2)); // x1
     const y1 = tf.sub(transRes.slice([0, 0, 1], [-1, -1, 1]), tf.div(h, 2)); // y1
-    console.log("w: ",w.dataSync()[4000],"h: ",h.dataSync()[4000],"x1: ",x1.dataSync()[4000],"y1: ",y1.dataSync()[4000])
+    //console.log("w: ",w.dataSync()[4000],"h: ",h.dataSync()[4000],"x1: ",x1.dataSync()[4000],"y1: ",y1.dataSync()[4000])
     return tf
       .concat(
         [
@@ -84,17 +77,13 @@ export const detect = async (source, model, canvasRef, callback = () => { }) => 
     return rawScores;
   }); // get scores
 
-
   const landmarks = tf.tidy(() => {
     return transRes.slice([0, 0, 5], [-1, -1, -1]).squeeze();
   }); // get landmarks
 
-  const nms = await tf.image.nonMaxSuppressionAsync(boxes, scores, 1, 0.45, 0.3); // NMS to filter boxes
+  const nms = await tf.image.nonMaxSuppressionAsync(boxes, scores, 10, 0.45, 0.3); // NMS to filter boxes
 
-  console.timeEnd("session")
-  
   const boxes_data = boxes.gather(nms, 0).dataSync(); // indexing boxes by nms index
-  console.log(boxes_data);
   const scores_data = scores.gather(nms, 0).dataSync(); // indexing scores by nms index
   let landmarks_data = landmarks.gather(nms, 0).dataSync(); // indexing classes by nms index
 
@@ -115,7 +104,15 @@ export const detect = async (source, model, canvasRef, callback = () => { }) => 
  * @param {tf.GraphModel} model loaded YOLOv8 tensorflow.js model
  * @param {HTMLCanvasElement} canvasRef canvas reference
  */
-export const detectVideo = (vidSource, model, canvasRef) => {
+export const detectVideo = async (vidSource, model, canvasRef, fpsRef) => {
+  let startInferenceTime = 0;
+  let endInferenceTime = 0;
+  let inferenceTimeSum = 0;
+  let numInferences = 0;
+  let lastFpsRefresh = 0;
+
+  fpsRef.innerHTML = 0;
+
   /**
    * Function to detect every frame from video
    */
@@ -126,10 +123,26 @@ export const detectVideo = (vidSource, model, canvasRef) => {
       return; // handle if source is closed
     }
 
-    detect(vidSource, model, canvasRef, () => {
+    startInferenceTime = (performance || Date).now();
+
+    await detect(vidSource, model, canvasRef, () => {
       requestAnimationFrame(detectFrame); // get another frame
     });
+
+    endInferenceTime = (performance || Date).now();
+    inferenceTimeSum += endInferenceTime - startInferenceTime;
+    numInferences++;
+
+    console.log('inferenceTime', endInferenceTime - startInferenceTime);
+
+    if (endInferenceTime - lastFpsRefresh >= FPSUpdateMilliseconds) {
+      const averageInferenceTime = inferenceTimeSum / numInferences;
+      inferenceTimeSum = 0;
+      numInferences = 0;
+      lastFpsRefresh = endInferenceTime;
+      fpsRef.innerHTML = parseInt(1000.0 / averageInferenceTime);
+    }
   };
 
-  detectFrame(); // initialize to detect every frame
+  await detectFrame(); // initialize to detect every frame
 };

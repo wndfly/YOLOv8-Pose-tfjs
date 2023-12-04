@@ -23,8 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-public/yolov8n-pose_web_model
-public/yolov8m-pose_web_model
 yolov8n-pose.pt
 images
 yolov8n-pose.pb

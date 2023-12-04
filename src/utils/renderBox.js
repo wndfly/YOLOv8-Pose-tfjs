@@ -47,7 +47,7 @@ const connections = [
 ];
 
 export const renderBoxes = (canvasRef, landmarks_data, boxes_data, scores_data, xi, yi) => {
-  console.log(landmarks_data)
+  //console.log(landmarks_data)
   const ctx = canvasRef.getContext("2d");
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
 
@@ -71,25 +71,22 @@ export const renderBoxes = (canvasRef, landmarks_data, boxes_data, scores_data, 
     ctx.strokeRect(x1, y1, width, height);
 
     let keypoints = landmarks_data.slice([i, 0, 0], [1, -1, -1]).reshape([17, 3]).arraySync();
-    const conf_threshold = 0.6;
+    const conf_threshold = 0.5;
     for (let j = 0; j < keypoints.length; j++) {
-      console.log(keypoints[j])
       const x = keypoints[j][0] * xi;
       const y = keypoints[j][1] * yi;
       const bodyPart = Object.keys(colors)[j];
-      if (keypoints[j][2]< conf_threshold){
+      if (keypoints[j][2] > conf_threshold){
       ctx.beginPath();
       ctx.arc(x, y, 5, 0, 2 * Math.PI);
       ctx.fillStyle = colors[bodyPart];
       ctx.fill();
       ctx.closePath();
       keypoints[j][2] = true;
-
       }
       else{
         keypoints[j][2] = false;
       }
-
     }
     ctx.lineWidth = 2;
     ctx.strokeStyle = 'white';
@@ -110,4 +107,3 @@ export const renderBoxes = (canvasRef, landmarks_data, boxes_data, scores_data, 
     }
   }
 }
-

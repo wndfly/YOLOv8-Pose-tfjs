@@ -27,6 +27,8 @@
   "homepage": "https://github.com/FatemeZamanian/YOLOv8-Pose-tfjs#readme",
   "dependencies": {
     "@tensorflow/tfjs": "^4.1.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.14.0",
+    "@tensorflow/tfjs-backend-webgpu": "^4.14.0",
     "normalize.css": "^8.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
